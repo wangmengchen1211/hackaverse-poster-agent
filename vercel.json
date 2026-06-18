@@ -7,7 +7,8 @@
       "use": "@vercel/python",
       "config": {
         "includeFiles": "app/**,prompts/**,references/**,supabase/**,static/**",
-        "maxLambdaSize": "50mb"
+        "maxLambdaSize": "50mb",
+        "maxDuration": 60
       }
     }
   ],
@@ -15,10 +16,5 @@
     { "src": "/api/(.*)", "dest": "/api/index.py" },
     { "src": "/outputs/(.*)", "dest": "/api/index.py" },
     { "src": "/(.*)", "dest": "/api/index.py" }
-  ],
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60
-    }
-  }
+  ]
 }
