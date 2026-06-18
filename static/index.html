@@ -57,6 +57,37 @@
   .error-msg { background:#3d1526; border:1px solid #d32f2f; color:#ef9a9a; padding:16px; border-radius:12px; margin-top:16px; display:none; }
   .error-msg.show { display:block; }
   .copy-preview { background:#0f1117; border:1px solid #2a2d37; border-radius:12px; padding:20px; margin-top:16px; white-space:pre-wrap; font-size:14px; line-height:1.8; max-height:400px; overflow-y:auto; }
+
+  /* === 图片保存按钮 === */
+  .result-actions { display:flex; gap:12px; margin-top:16px; justify-content:center; flex-wrap:wrap; }
+  .btn-save { padding:12px 28px; font-size:15px; font-weight:600; background:linear-gradient(135deg,#43a047,#2e7d32); color:#fff; border:none; border-radius:10px; cursor:pointer; transition:all .2s; display:inline-flex; align-items:center; gap:8px; }
+  .btn-save:hover { transform:translateY(-1px); box-shadow:0 4px 12px rgba(67,160,71,.3); }
+  .btn-save:disabled { opacity:.5; cursor:not-allowed; }
+  .btn-regenerate { padding:12px 28px; font-size:15px; font-weight:600; background:#1a1d27; color:#e0e0e0; border:1px solid #2a2d37; border-radius:10px; cursor:pointer; transition:all .2s; }
+  .btn-regenerate:hover { border-color:#1976d2; }
+  .save-hint { text-align:center; font-size:12px; color:#888; margin-top:8px; }
+  .result-image-wrap { position:relative; display:inline-block; max-width:540px; margin:0 auto; display:block; }
+  .result-image-wrap img { width:100%; border-radius:12px; border:1px solid #333; display:block; -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
+
+  /* === 长按上下文菜单 === */
+  .ctx-menu { display:none; position:fixed; z-index:9999; background:#1a1d27; border:1px solid #333; border-radius:10px; padding:8px 0; min-width:160px; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .ctx-menu.show { display:block; }
+  .ctx-menu-item { padding:10px 20px; font-size:14px; color:#e0e0e0; cursor:pointer; display:flex; align-items:center; gap:8px; }
+  .ctx-menu-item:hover { background:#1976d2; }
+
+  /* === PRD文件上传 === */
+  .prd-upload-row { display:flex; gap:12px; align-items:stretch; margin-top:8px; }
+  .prd-upload-zone { flex:0 0 auto; border:2px dashed #2a2d37; border-radius:10px; padding:16px 20px; text-align:center; cursor:pointer; transition:border-color .2s; position:relative; min-width:200px; }
+  .prd-upload-zone:hover { border-color:#1976d2; }
+  .prd-upload-zone.has-file { border-color:#43a047; background:#15291d; }
+  .prd-upload-zone .up-icon { font-size:24px; }
+  .prd-upload-zone .up-text { font-size:12px; color:#aaa; margin-top:4px; }
+  .prd-upload-zone input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .prd-file-feedback { font-size:12px; margin-top:8px; padding:8px 12px; border-radius:8px; display:none; }
+  .prd-file-feedback.show { display:block; }
+  .prd-file-feedback.success { background:#15291d; color:#81c784; border:1px solid #2e7d32; }
+  .prd-file-feedback.error { background:#3d1526; color:#ef9a9a; border:1px solid #d32f2f; }
+  .prd-file-feedback.loading { background:#15293d; color:#64b5f6; border:1px solid #1976d2; }
 </style>
 </head>
 <body>
@@ -105,13 +136,22 @@
         <div>
           <label>排版模式</label>
           <select id="layout_mode">
+            <option value="fixed" selected>固定模板（推荐）</option>
             <option value="random">随机选取模板</option>
             <option value="generate">AI 生成新排版</option>
           </select>
         </div>
       </div>
-      <label>PRD / 项目描述（粘贴你的产品方案）</label>
-      <textarea id="prd" placeholder="在这里粘贴你的 PRD 或项目描述..." style="min-height:180px;"></textarea>
+      <label>PRD / 项目描述（可直接粘贴，或上传文件自动提取）</label>
+      <textarea id="prd" placeholder="在这里粘贴你的 PRD 或项目描述，或从右侧上传文件自动提取..." style="min-height:180px;"></textarea>
+      <div class="prd-upload-row">
+        <div class="prd-upload-zone" id="prdUploadZone">
+          <div class="up-icon">📎</div>
+          <div class="up-text">上传 PRD 文件<br>PDF / Markdown / Word / TXT</div>
+          <input type="file" id="prdFileInput" accept=".pdf,.md,.markdown,.doc,.docx,.txt">
+        </div>
+      </div>
+      <div class="prd-file-feedback" id="prdFeedback"></div>
     </div>
 
     <!-- 观众模式 -->
@@ -173,11 +213,24 @@
   <!-- Error -->
   <div class="error-msg" id="errorMsg"></div>
 
+  <!-- 长按上下文菜单 -->
+  <div class="ctx-menu" id="ctxMenu">
+    <div class="ctx-menu-item" onclick="saveImage()">💾 保存图片</div>
+    <div class="ctx-menu-item" onclick="hideCtxMenu()">✕ 取消</div>
+  </div>
+
   <!-- Result -->
   <div class="result-card" id="resultCard">
     <div class="card">
       <div class="card-title"><span class="num">✓</span> 生成结果</div>
-      <img class="result-image" id="resultImage" style="display:none;">
+      <div class="result-image-wrap" id="resultImageWrap" style="display:none;">
+        <img class="result-image" id="resultImage">
+      </div>
+      <div class="result-actions" id="resultActions" style="display:none;">
+        <button class="btn-save" id="btnSave" onclick="saveImage()">💾 保存报纸</button>
+        <button class="btn-regenerate" onclick="scrollTo(0,0)">🔄 再做一张</button>
+      </div>
+      <div class="save-hint" id="saveHint" style="display:none;">💡 也可以长按图片保存</div>
       <div class="result-meta" id="resultMeta"></div>
     </div>
     <div class="card">
@@ -187,7 +240,13 @@
   </div>
 </div>
 
+<!-- PDF.js 和 Mammoth.js 用于 PRD 文件文本提取 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 <script>
+// pdf.js worker 配置
+if (window.pdfjsLib) { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; }
+
 const API_BASE = '';  // 同源
 const STYLES = [
   {key:'daily', icon:'📰', name:'经典日报风', desc:'正式专业，新闻纪实'},
@@ -391,11 +450,18 @@ function showResult(data) {
 
   // 图片
   const imgEl = document.getElementById('resultImage');
+  const imgWrap = document.getElementById('resultImageWrap');
+  const actionsEl = document.getElementById('resultActions');
+  const hintEl = document.getElementById('saveHint');
   if (data.image_url) {
     imgEl.src = data.image_url;
-    imgEl.style.display = 'block';
+    imgWrap.style.display = 'block';
+    actionsEl.style.display = 'flex';
+    hintEl.style.display = 'block';
   } else {
-    imgEl.style.display = 'none';
+    imgWrap.style.display = 'none';
+    actionsEl.style.display = 'none';
+    hintEl.style.display = 'none';
   }
 
   // 元信息
@@ -413,6 +479,7 @@ function showResult(data) {
   // 文案
   const copy = data.poster_copy;
   if (copy) {
+    window._lastCopy = copy;  // 保存文案供文件名生成使用
     let text = '';
     text += `【${copy.poster_name||'原点日报'}】  ${copy.issue_label||''} ${copy.date||''}\n`;
     text += `\n${'='.repeat(50)}\n\n`;
@@ -431,6 +498,214 @@ function showResult(data) {
     document.getElementById('copyPreview').textContent = text;
   }
 }
+
+// === 图片保存功能 ===
+let currentImageUrl = '';  // 保存当前图片 URL/Base64
+
+function saveImage() {
+  hideCtxMenu();
+  const imgEl = document.getElementById('resultImage');
+  if (!imgEl.src) { alert('还没有可保存的图片'); return; }
+
+  const btn = document.getElementById('btnSave');
+  const origText = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '⏳ 下载中...';
+
+  // 如果是 data URI（base64），直接下载
+  if (imgEl.src.startsWith('data:')) {
+    const link = document.createElement('a');
+    link.href = imgEl.src;
+    link.download = generateFileName();
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    btn.disabled = false;
+    btn.innerHTML = '✅ 已保存';
+    setTimeout(() => { btn.innerHTML = origText; }, 2000);
+    return;
+  }
+
+  // 否则是 URL，fetch 后转 blob 下载（解决跨域问题）
+  fetch(imgEl.src)
+    .then(r => { if (!r.ok) throw new Error('下载失败'); return r.blob(); })
+    .then(blob => {
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = generateFileName();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      btn.disabled = false;
+      btn.innerHTML = '✅ 已保存';
+      setTimeout(() => { btn.innerHTML = origText; }, 2000);
+    })
+    .catch(err => {
+      // 跨域失败：尝试直接用 a 标签下载
+      const link = document.createElement('a');
+      link.href = imgEl.src;
+      link.download = generateFileName();
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      btn.disabled = false;
+      btn.innerHTML = origText;
+    });
+}
+
+function generateFileName() {
+  const copy = window._lastCopy || {};
+  const name = copy.poster_name || 'poster';
+  const date = new Date();
+  const ts = `${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}`;
+  return `${name}_${ts}.png`;
+}
+
+// === 长按图片弹出保存菜单 ===
+const resultImage = document.getElementById('resultImage');
+const ctxMenu = document.getElementById('ctxMenu');
+
+let pressTimer = null;
+
+resultImage.addEventListener('touchstart', (e) => {
+  pressTimer = setTimeout(() => {
+    e.preventDefault();
+    showCtxMenu(e.touches[0].clientX, e.touches[0].clientY);
+  }, 600);
+});
+
+resultImage.addEventListener('touchend', () => { clearTimeout(pressTimer); });
+resultImage.addEventListener('touchmove', () => { clearTimeout(pressTimer); });
+
+resultImage.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  showCtxMenu(e.clientX, e.clientY);
+});
+
+function showCtxMenu(x, y) {
+  ctxMenu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+  ctxMenu.style.top = Math.min(y, window.innerHeight - 100) + 'px';
+  ctxMenu.classList.add('show');
+}
+
+function hideCtxMenu() { ctxMenu.classList.remove('show'); }
+
+document.addEventListener('click', (e) => {
+  if (!ctxMenu.contains(e.target)) hideCtxMenu();
+});
+
+// === PRD 文件上传与文本提取 ===
+const prdFileInput = document.getElementById('prdFileInput');
+const prdUploadZone = document.getElementById('prdUploadZone');
+const prdFeedback = document.getElementById('prdFeedback');
+const prdTextarea = document.getElementById('prd');
+
+function showPrdFeedback(type, msg) {
+  prdFeedback.className = 'prd-file-feedback show ' + type;
+  prdFeedback.textContent = msg;
+}
+
+function hidePrdFeedback() {
+  prdFeedback.className = 'prd-file-feedback';
+}
+
+prdFileInput.onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const maxSize = 10 * 1024 * 1024;  // 10MB
+  if (file.size > maxSize) {
+    showPrdFeedback('error', '文件超过 10MB 限制，请选择更小的文件');
+    prdUploadZone.classList.remove('has-file');
+    return;
+  }
+
+  const ext = file.name.split('.').pop().toLowerCase();
+  const supportedExts = ['pdf', 'md', 'markdown', 'doc', 'docx', 'txt'];
+  if (!supportedExts.includes(ext)) {
+    showPrdFeedback('error', '不支持的格式：.' + ext + '，仅支持 PDF / Markdown / Word / TXT');
+    prdUploadZone.classList.remove('has-file');
+    return;
+  }
+
+  prdUploadZone.classList.add('has-file');
+  showPrdFeedback('loading', '正在提取文件内容...');
+
+  try {
+    let text = '';
+
+    if (ext === 'txt' || ext === 'md' || ext === 'markdown') {
+      // 纯文本：直接读取
+      text = await file.text();
+    } else if (ext === 'pdf') {
+      // PDF：用 pdf.js 提取文本
+      text = await extractPdfText(file);
+    } else if (ext === 'doc' || ext === 'docx') {
+      // Word：用 mammoth.js 提取文本
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      text = result.value;
+    }
+
+    if (!text || text.trim().length < 10) {
+      showPrdFeedback('error', '提取到的内容太少（可能该文件是纯图片 PDF，无法提取文字）');
+      return;
+    }
+
+    // 填入 textarea（追加而非覆盖，如果已有内容则提示）
+    if (prdTextarea.value.trim()) {
+      const confirmMerge = confirm('检测到文本框已有内容，是否用文件内容替换？\n（取消则在末尾追加）');
+      prdTextarea.value = confirmMerge ? text : prdTextarea.value + '\n\n' + text;
+    } else {
+      prdTextarea.value = text;
+    }
+
+    const charCount = text.length;
+    showPrdFeedback('success', '✅ 提取成功：' + file.name + '（' + charCount + ' 字）');
+    prdTextarea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+  } catch (err) {
+    console.error('PRD 提取失败:', err);
+    showPrdFeedback('error', '提取失败：' + (err.message || '未知错误') + '\n请尝试手动复制粘贴内容');
+    prdUploadZone.classList.remove('has-file');
+  }
+};
+
+async function extractPdfText(file) {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let text = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items.map(item => item.str).join(' ');
+    text += pageText + '\n\n';
+  }
+  return text.trim();
+}
+
+// 支持 Ctrl+V 粘贴文件（剪贴板中的文件）
+prdTextarea.addEventListener('paste', (e) => {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (const item of items) {
+    if (item.kind === 'file') {
+      const file = item.getAsFile();
+      if (file) {
+        e.preventDefault();
+        // 模拟文件上传流程
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        prdFileInput.files = dt.files;
+        prdFileInput.dispatchEvent(new Event('change'));
+        return;
+      }
+    }
+  }
+});
 </script>
 </body>
 </html>
