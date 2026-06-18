@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原点日报机 - 测试台</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; background:#0f1117; color:#e0e0e0; min-height:100vh; padding:24px; }
+  .container { max-width:1100px; margin:0 auto; }
+  h1 { text-align:center; font-size:28px; margin-bottom:8px; background:linear-gradient(135deg,#64b5f6,#1976d2); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+  .subtitle { text-align:center; color:#888; margin-bottom:32px; font-size:14px; }
+  .card { background:#1a1d27; border-radius:16px; padding:28px; margin-bottom:24px; border:1px solid #2a2d37; }
+  .card-title { font-size:18px; font-weight:600; margin-bottom:20px; color:#64b5f6; display:flex; align-items:center; gap:8px; }
+  .card-title .num { width:28px; height:28px; background:#1976d2; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  label { display:block; font-size:13px; color:#aaa; margin-bottom:6px; }
+  input[type="text"], textarea, select {
+    width:100%; background:#0f1117; border:1px solid #333; border-radius:8px; padding:10px 14px; color:#e0e0e0; font-size:14px; outline:none; transition:border-color .2s;
+  }
+  input[type="text"]:focus, textarea:focus, select:focus { border-color:#1976d2; }
+  textarea { min-height:120px; resize:vertical; font-family:inherit; }
+  .row { display:flex; gap:16px; margin-bottom:16px; }
+  .row > div { flex:1; }
+  .style-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .style-card { background:#0f1117; border:2px solid #2a2d37; border-radius:12px; padding:16px; cursor:pointer; transition:all .2s; text-align:center; }
+  .style-card:hover { border-color:#1976d2; }
+  .style-card.selected { border-color:#1976d2; background:#15293d; }
+  .style-card .icon { font-size:32px; margin-bottom:8px; }
+  .style-card .name { font-size:14px; font-weight:600; }
+  .style-card .desc { font-size:11px; color:#888; margin-top:4px; }
+  .upload-area { border:2px dashed #2a2d37; border-radius:12px; padding:32px; text-align:center; cursor:pointer; transition:border-color .2s; position:relative; }
+  .upload-area:hover { border-color:#1976d2; }
+  .upload-area.has-files { border-color:#1976d2; background:#15293d; }
+  .upload-area .upload-icon { font-size:36px; margin-bottom:8px; }
+  .upload-area .upload-text { color:#aaa; font-size:14px; }
+  .upload-area input[type="file"] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+  .preview-images { display:flex; gap:12px; margin-top:12px; flex-wrap:wrap; }
+  .preview-images img { width:80px; height:80px; object-fit:cover; border-radius:8px; border:1px solid #333; }
+  .btn-generate { width:100%; padding:16px; font-size:16px; font-weight:600; background:linear-gradient(135deg,#1976d2,#1565c0); color:#fff; border:none; border-radius:12px; cursor:pointer; transition:transform .1s, opacity .2s; }
+  .btn-generate:hover { transform:translateY(-1px); }
+  .btn-generate:disabled { opacity:.5; cursor:not-allowed; transform:none; }
+  .loading-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:999; align-items:center; justify-content:center; flex-direction:column; }
+  .loading-overlay.show { display:flex; }
+  .spinner { width:64px; height:64px; border:4px solid #2a2d37; border-top-color:#1976d2; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:24px; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .loading-text { font-size:18px; color:#64b5f6; }
+  .loading-sub { font-size:13px; color:#888; margin-top:8px; }
+  .loading-progress { width:300px; height:6px; background:#2a2d37; border-radius:3px; margin-top:16px; overflow:hidden; }
+  .loading-bar { height:100%; background:#1976d2; width:0%; transition:width .5s; border-radius:3px; }
+  .result-card { display:none; margin-top:24px; }
+  .result-card.show { display:block; }
+  .result-image { width:100%; max-width:540px; border-radius:12px; border:1px solid #333; margin:0 auto; display:block; }
+  .result-meta { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:16px; }
+  .meta-item { background:#0f1117; padding:12px; border-radius:8px; border:1px solid #2a2d37; }
+  .meta-item .label { font-size:11px; color:#888; margin-bottom:4px; }
+  .meta-item .value { font-size:14px; font-weight:600; }
+  .error-msg { background:#3d1526; border:1px solid #d32f2f; color:#ef9a9a; padding:16px; border-radius:12px; margin-top:16px; display:none; }
+  .error-msg.show { display:block; }
+  .copy-preview { background:#0f1117; border:1px solid #2a2d37; border-radius:12px; padding:20px; margin-top:16px; white-space:pre-wrap; font-size:14px; line-height:1.8; max-height:400px; overflow-y:auto; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>原点日报机</h1>
+  <p class="subtitle">选手/观众双模式 · AI 生成专属头版报纸</p>
+
+  <!-- Mode Selector -->
+  <div class="card">
+    <div class="card-title"><span class="num">0</span> 选择身份模式</div>
+    <div class="style-grid" style="grid-template-columns:repeat(2,1fr);">
+      <div class="style-card selected" data-mode="participant" onclick="selectMode('participant')">
+        <div class="icon">🏆</div>
+        <div class="name">我是选手</div>
+        <div class="desc">我有项目，想生成项目发布报纸</div>
+      </div>
+      <div class="style-card" data-mode="audience" onclick="selectMode('audience')">
+        <div class="icon">👀</div>
+        <div class="name">我是观众</div>
+        <div class="desc">我是观众，想生成【我在现场】的纪念报纸</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 1: PRD / Audience Info -->
+  <div class="card" id="step1Card">
+    <div class="card-title"><span class="num">1</span> <span id="step1Title">输入项目介绍 / PRD</span></div>
+    
+    <!-- 选手模式 -->
+    <div id="participantFields">
+      <div class="row">
+        <div>
+          <label>项目名称</label>
+          <input type="text" id="project_name" placeholder="例：原点日报机" value="原点日报机">
+        </div>
+        <div>
+          <label>团队名称（可选）</label>
+          <input type="text" id="team_name" placeholder="例：AI创意团队">
+        </div>
+      </div>
+      <div class="row">
+        <div>
+          <label>活动名称（可选）</label>
+          <input type="text" id="event_name" placeholder="例：抖音原点社区黑客松">
+        </div>
+        <div>
+          <label>排版模式</label>
+          <select id="layout_mode">
+            <option value="random">随机选取模板</option>
+            <option value="generate">AI 生成新排版</option>
+          </select>
+        </div>
+      </div>
+      <label>PRD / 项目描述（粘贴你的产品方案）</label>
+      <textarea id="prd" placeholder="在这里粘贴你的 PRD 或项目描述..." style="min-height:180px;"></textarea>
+    </div>
+
+    <!-- 观众模式 -->
+    <div id="audienceFields" style="display:none;">
+      <div class="row">
+        <div>
+          <label>你的姓名/昵称</label>
+          <input type="text" id="user_name" placeholder="例：小明 / 科技爱好者">
+        </div>
+        <div>
+          <label>活动名称</label>
+          <input type="text" id="audience_event_name" placeholder="例：抖音原点社区黑客松" value="抖音原点社区黑客松">
+        </div>
+      </div>
+      <label>现场感受/印象（可选，描述你对这场活动的感受）</label>
+      <textarea id="impression" placeholder="例：现场氛围超燃，看到了一群天才开发者在疯狂输出..." style="min-height:100px;"></textarea>
+    </div>
+  </div>
+
+  <!-- Step 2: 风格 -->
+  <div class="card">
+    <div class="card-title"><span class="num">2</span> 选择报纸风格</div>
+    <div class="style-grid" id="styleGrid"></div>
+  </div>
+
+  <!-- Step 3: 图片 -->
+  <div class="card">
+    <div class="card-title"><span class="num">3</span> 上传照片（0-3张，可选）</div>
+    <div class="upload-area" id="uploadArea">
+      <div class="upload-icon">📷</div>
+      <div class="upload-text">点击或拖拽上传照片（最多3张）</div>
+      <input type="file" id="fileInput" accept="image/*" multiple>
+    </div>
+    <div class="preview-images" id="previewImages"></div>
+  </div>
+
+  <!-- Step 4: 二维码 -->
+  <div class="card">
+    <div class="card-title"><span class="num">4</span> 上传二维码（可选，自动贴入右下角）</div>
+    <div class="upload-area" id="qrUploadArea" style="padding:16px;">
+      <div class="upload-icon">📱</div>
+      <div class="upload-text">点击上传二维码图片（程序化贴入右下角，不由 AI 生成）</div>
+      <input type="file" id="qrInput" accept="image/*">
+    </div>
+    <div class="preview-images" id="qrPreview"></div>
+  </div>
+
+  <!-- Generate Button -->
+  <button class="btn-generate" id="btnGenerate">🚀 生成我的头版报纸</button>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner"></div>
+    <div class="loading-text">AI 主编正在撰写你的头版...</div>
+    <div class="loading-sub" id="loadingSub">预计需要 50-90 秒，请耐心等待</div>
+    <div class="loading-progress"><div class="loading-bar" id="loadingBar"></div></div>
+  </div>
+
+  <!-- Error -->
+  <div class="error-msg" id="errorMsg"></div>
+
+  <!-- Result -->
+  <div class="result-card" id="resultCard">
+    <div class="card">
+      <div class="card-title"><span class="num">✓</span> 生成结果</div>
+      <img class="result-image" id="resultImage" style="display:none;">
+      <div class="result-meta" id="resultMeta"></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📰 报纸文案预览</div>
+      <div class="copy-preview" id="copyPreview"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '';  // 同源
+const STYLES = [
+  {key:'daily', icon:'📰', name:'经典日报风', desc:'正式专业，新闻纪实'},
+  {key:'cyber', icon:'🌃', name:'未来赛博风', desc:'霓虹科技，赛博朋克'},
+  {key:'entertainment', icon:'🎬', name:'娱乐头条风', desc:'爆款大字，娱乐至上'},
+  {key:'character3d', icon:'🧊', name:'3D人物风', desc:'立体人物，潮玩质感'},
+  {key:'comic', icon:'💥', name:'漫画分镜风', desc:'日漫分镜，热血少年'},
+  {key:'magic', icon:'✨', name:'魔法学院风', desc:'魔法报纸，奇幻世界'},
+];
+
+let selectedStyle = 'daily';
+let selectedFiles = [];
+let qrFile = null;
+let currentMode = 'participant';
+
+// 模式切换
+function selectMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('[data-mode]').forEach(c => c.classList.remove('selected'));
+  document.querySelector(`[data-mode="${mode}"]`).classList.add('selected');
+  const participantFields = document.getElementById('participantFields');
+  const audienceFields = document.getElementById('audienceFields');
+  const step1Title = document.getElementById('step1Title');
+  if (mode === 'audience') {
+    participantFields.style.display = 'none';
+    audienceFields.style.display = 'block';
+    step1Title.textContent = '输入你的信息和现场感受';
+  } else {
+    participantFields.style.display = 'block';
+    audienceFields.style.display = 'none';
+    step1Title.textContent = '输入项目介绍 / PRD';
+  }
+}
+
+// 渲染风格卡片
+const grid = document.getElementById('styleGrid');
+STYLES.forEach(s => {
+  const el = document.createElement('div');
+  el.className = 'style-card' + (s.key === 'daily' ? ' selected' : '');
+  el.dataset.key = s.key;
+  el.innerHTML = `<div class="icon">${s.icon}</div><div class="name">${s.name}</div><div class="desc">${s.desc}</div>`;
+  el.onclick = () => {
+    document.querySelectorAll('.style-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedStyle = s.key;
+  };
+  grid.appendChild(el);
+});
+
+// 文件上传
+const fileInput = document.getElementById('fileInput');
+const previewImages = document.getElementById('previewImages');
+const uploadArea = document.getElementById('uploadArea');
+
+fileInput.onchange = (e) => {
+  selectedFiles = Array.from(e.target.files).slice(0, 3);
+  previewImages.innerHTML = '';
+  selectedFiles.forEach(f => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      previewImages.appendChild(img);
+    };
+    reader.readAsDataURL(f);
+  });
+  uploadArea.classList.toggle('has-files', selectedFiles.length > 0);
+};
+
+// 二维码上传
+const qrInput = document.getElementById('qrInput');
+const qrPreview = document.getElementById('qrPreview');
+const qrUploadArea = document.getElementById('qrUploadArea');
+
+qrInput.onchange = (e) => {
+  qrFile = e.target.files[0] || null;
+  qrPreview.innerHTML = '';
+  if (qrFile) {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = document.createElement('img');
+      img.src = ev.target.result;
+      img.style.width = '60px';
+      img.style.height = '60px';
+      qrPreview.appendChild(img);
+    };
+    reader.readAsDataURL(qrFile);
+    qrUploadArea.classList.add('has-files');
+  } else {
+    qrUploadArea.classList.remove('has-files');
+  }
+};
+
+// 生成
+const btn = document.getElementById('btnGenerate');
+const overlay = document.getElementById('loadingOverlay');
+const loadingBar = document.getElementById('loadingBar');
+const loadingSub = document.getElementById('loadingSub');
+const errorMsg = document.getElementById('errorMsg');
+const resultCard = document.getElementById('resultCard');
+
+btn.onclick = async () => {
+  // 校验
+  if (currentMode === 'participant') {
+    const prd = document.getElementById('prd').value.trim();
+    if (!prd) { alert('选手模式：请输入项目描述或 PRD'); return; }
+  } else {
+    const userName = document.getElementById('user_name').value.trim();
+    if (!userName) { alert('观众模式：请输入你的姓名/昵称'); return; }
+  }
+
+  // 重置
+  errorMsg.classList.remove('show');
+  resultCard.classList.remove('show');
+  btn.disabled = true;
+  overlay.classList.add('show');
+  loadingBar.style.width = '0%';
+
+  // 进度模拟
+  let progress = 0;
+  const phases = currentMode === 'audience'
+    ? [
+        {at:15, text:'AI 主编正在感受你的现场体验...'},
+        {at:35, text:'正在生成观众专属新闻文案...'},
+        {at:55, text:'正在生成头版报纸图片...'},
+        {at:80, text:'正在后处理（二维码贴图等）...'},
+        {at:92, text:'最终校验中，即将完成...'},
+      ]
+    : [
+        {at:10, text:'AI 主编正在阅读你的项目...'},
+        {at:25, text:'正在生成风格化新闻文案...'},
+        {at:45, text:'正在生成头版报纸图片...'},
+        {at:75, text:'正在后处理（二维码贴图等）...'},
+        {at:92, text:'最终校验中，即将完成...'},
+      ];
+  const timer = setInterval(() => {
+    progress = Math.min(progress + Math.random()*8, 92);
+    loadingBar.style.width = progress + '%';
+    for (let i = phases.length-1; i>=0; i--) {
+      if (progress >= phases[i].at) { loadingSub.textContent = phases[i].text; break; }
+    }
+  }, 800);
+
+  // 构造 FormData
+  const fd = new FormData();
+  fd.append('mode', currentMode);
+  fd.append('style', selectedStyle);
+  fd.append('user_ref', 'web_test_' + Date.now());
+
+  if (currentMode === 'audience') {
+    fd.append('prd', '');
+    fd.append('user_name', document.getElementById('user_name').value.trim());
+    fd.append('event_name', document.getElementById('audience_event_name').value.trim());
+    fd.append('impression', document.getElementById('impression').value.trim());
+    fd.append('project_name', '');
+    fd.append('team_name', '');
+    fd.append('layout_mode', 'random');
+  } else {
+    fd.append('prd', document.getElementById('prd').value.trim());
+    fd.append('project_name', document.getElementById('project_name').value);
+    fd.append('team_name', document.getElementById('team_name').value);
+    fd.append('event_name', document.getElementById('event_name').value);
+    fd.append('layout_mode', document.getElementById('layout_mode').value);
+  }
+
+  selectedFiles.forEach(f => fd.append('images', f));
+  if (qrFile) fd.append('qr_code', qrFile);
+
+  try {
+    const resp = await fetch(API_BASE + '/api/generate-poster', {method:'POST', body:fd});
+    const data = await resp.json();
+
+    clearInterval(timer);
+    loadingBar.style.width = '100%';
+
+    setTimeout(() => {
+      overlay.classList.remove('show');
+      btn.disabled = false;
+    }, 500);
+
+    if (!resp.ok || data.status === 'failed') {
+      const err = data.error || data.detail || '生成失败';
+      errorMsg.textContent = '❌ ' + err;
+      errorMsg.classList.add('show');
+      // 如果有文案，也展示
+      if (data.poster_copy) showResult(data);
+      return;
+    }
+    showResult(data);
+  } catch (err) {
+    clearInterval(timer);
+    overlay.classList.remove('show');
+    btn.disabled = false;
+    errorMsg.textContent = '❌ 网络错误: ' + err.message;
+    errorMsg.classList.add('show');
+  }
+};
+
+function showResult(data) {
+  resultCard.classList.add('show');
+
+  // 图片
+  const imgEl = document.getElementById('resultImage');
+  if (data.image_url) {
+    imgEl.src = data.image_url;
+    imgEl.style.display = 'block';
+  } else {
+    imgEl.style.display = 'none';
+  }
+
+  // 元信息
+  const meta = data.generation_meta || {};
+  const metaEl = document.getElementById('resultMeta');
+  metaEl.innerHTML = `
+    <div class="meta-item"><div class="label">状态</div><div class="value">${data.status||'-'}</div></div>
+    <div class="meta-item"><div class="label">风格</div><div class="value">${data.style||'-'}</div></div>
+    <div class="meta-item"><div class="label">排版</div><div class="value">${data.layout_used||'-'}</div></div>
+    <div class="meta-item"><div class="label">总耗时</div><div class="value">${meta.total_latency_ms ? (meta.total_latency_ms/1000).toFixed(1)+'s' : '-'}</div></div>
+    <div class="meta-item"><div class="label">文本耗时</div><div class="value">${meta.text_latency_ms ? (meta.text_latency_ms/1000).toFixed(1)+'s' : '-'}</div></div>
+    <div class="meta-item"><div class="label">生图耗时</div><div class="value">${meta.image_latency_ms ? (meta.image_latency_ms/1000).toFixed(1)+'s' : '-'}</div></div>
+  `;
+
+  // 文案
+  const copy = data.poster_copy;
+  if (copy) {
+    let text = '';
+    text += `【${copy.poster_name||'原点日报'}】  ${copy.issue_label||''} ${copy.date||''}\n`;
+    text += `\n${'='.repeat(50)}\n\n`;
+    text += `头条: ${copy.headline||''}\n`;
+    if (copy.subheadline) text += `副标: ${copy.subheadline}\n`;
+    if (copy.tags && copy.tags.length) text += `标签: ${copy.tags.join(' ')}\n`;
+    text += `\n${'='.repeat(50)}\n\n`;
+    if (copy.columns) {
+      copy.columns.forEach((c,i) => {
+        text += `◆ ${c.title}\n${c.body}\n\n`;
+      });
+    }
+    if (copy.editor_comment) text += `📝 主编点评: ${copy.editor_comment}\n\n`;
+    if (copy.share_line) text += `💬 ${copy.share_line}\n`;
+    if (copy.easter_egg) text += `🥚 ${copy.easter_egg}\n`;
+    document.getElementById('copyPreview').textContent = text;
+  }
+}
+</script>
+</body>
+</html>
